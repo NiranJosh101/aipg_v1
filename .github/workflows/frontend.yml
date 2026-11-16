@@ -1,0 +1,66 @@
+name: Extension CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'privacy-guardian/**'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    # --- ADD THIS BLOCK TO FIX THE 403 ERROR ---
+    permissions:
+      contents: write
+    # -------------------------------------------
+
+    defaults:
+      run:
+        working-directory: privacy-guardian
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint || true
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Verify manifest
+        run: |
+          if [ ! -f dist/manifest.json ]; then
+            echo "manifest.json missing in dist!"
+            exit 1
+          fi
+
+      - name: Package extension
+        run: |
+          cd dist
+          zip -r ../extension.zip .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-extension
+          path: privacy-guardian/extension.zip
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # This uses your run number to ensure every push gets a unique version
+          tag_name: v1.0.${{ github.run_number }}
+          name: Extension Release v1.0.${{ github.run_number }}
+          files: privacy-guardian/extension.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
